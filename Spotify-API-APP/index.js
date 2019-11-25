@@ -176,16 +176,15 @@ const recieved_search = function (search_res, res){
             let webpage = '<h1>${artist.name}</h1><p>${artist.genre.join()}</p><img src="${img_path_name}" />';
             res.end(webpage);
         }else{
-            let img_req = https.get(artist.image, function(image_res){
+            let image_req = https.get(artist.image, function(image_res){
                 let new_img = fs.createWriteStream(img_path_name, {'encoding': null});
                 image_res.pipe(new_img);
-                new_img.on('finish', ()=>{
+                new_img.on('finish', function() {
                     console.log("image cache");
                     let webpage = '<h1>${artist.name}</h1><p>${artist.genre.join()}</p><img src="${img_path_name}" />';
                 });
             });
         }
-        
     });
 }
 
