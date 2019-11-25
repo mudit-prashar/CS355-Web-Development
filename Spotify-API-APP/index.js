@@ -19,7 +19,7 @@ const credentials = require('./auth/credentials.json');
 const fs = require('fs');
 let state_storage = [];
 const authentication_cache = './auth/authentication-res.json';
-
+const img_path = './album-art/';
 
 
 const new_connection = function(req,res){
@@ -63,7 +63,6 @@ const new_connection = function(req,res){
             res.end("Spotify API Access Denied");
         }
         else {
-            
             let artist = previous_state.artist;
             state_storage = state_storage.filter((element) => element.state !== auth_response.state);
             const access_token_endpoint = "https://accounts.spotify.com/api/token";
@@ -116,7 +115,7 @@ const new_connection = function(req,res){
 
 };
 
-const received_authentication = function(authentication_res, user_input, auth_sent_time, res){
+const received_authentication = function(authentication_res, artist, auth_sent_time, res){
     authentication_res.setEncoding("utf8");
     let body="";
     authentication_res.on("data", function(chunk){body += chunk;});
@@ -129,7 +128,7 @@ const received_authentication = function(authentication_res, user_input, auth_se
         console.log(spotify_auth);
         create_cache(spotify_auth);
         console.log("new cache");
-        create_search_req(spotify_auth, res, user_input);
+        create_search_req(spotify_auth, res, artist);
 
     })
 }
@@ -145,18 +144,49 @@ const create_cache = function(spotify_auth){
 
     })
 }
-const create_search_req = function(spotify_auth, res, user_input){
+const create_search_req = function(spotify_auth, res, artist){
+    console.log(artist);
     let param = {
         access_token : spotify_auth.access_token,
-        q : user_input.artist,
-        type : 'artist'
+        q : artist,
+        type : 'album'
     }
     let search_req_url = 'https://api.spotify.com/v1/search?'+querystring.stringify(param);
     console.log(search_req_url);
-    let search_req = https.request(search_req_url, (search_res)=>{
+    let search_req = https.request(search_req_url, function(search_res){
         recieved_search(search_res, res);
     });
     search_req.end();
+}
+const recieved_search = function (search_res, res){
+    search_res.setEncoding('utf8');
+    let body = "";
+    search_res.on("data", data=>{body+=data});
+    search_res.on("end", ()=>{
+        let search_res_data = JSON.parse(body);
+        console.log(search_res_data);
+        let artist = {
+            name: search_res_data.artists.items[0].name,
+            genre: search_res_data.artists.items[0].genres,
+            image: search_res_data.artists.items[0].images[0].url
+        }
+        let img_path_name = img_path + artist.name+'.png';
+        if(fs.existsSync(img_path_name)){
+            console.log("image already exists");
+            let webpage = '<h1>${artist.name}</h1><p>${artist.genre.join()}</p><img src="${img_path_name}" />';
+            res.end(webpage);
+        }else{
+            let img_req = https.get(artist.image, function(image_res){
+                let new_img = fs.createWriteStream(img_path_name, {'encoding': null});
+                image_res.pipe(new_img);
+                new_img.on('finish', ()=>{
+                    console.log("image cache");
+                    let webpage = '<h1>${artist.name}</h1><p>${artist.genre.join()}</p><img src="${img_path_name}" />';
+                });
+            });
+        }
+        
+    });
 }
 
 const server = http.createServer(new_connection);
