@@ -10,7 +10,7 @@ const http = require("http");
 const https = require("https");
 const url = require("url");
 const querystring = require("querystring");
-const crypto = require("crypto");
+
 
 const host = "localhost";
 const port = 3000;
@@ -20,7 +20,9 @@ const fs = require('fs');
 
 const authentication_cache = './auth/authentication-res.json';
 const img_path = './album-art/';
-
+let albums = [];
+let album_art = [];
+let downloaded_images = 0;
 
 const new_connection = function(req,res){
     if (req.url === "/") {
@@ -87,9 +89,11 @@ const new_connection = function(req,res){
 
     else  if(req.url.includes('/album-art/')){
         console.log('album-art endpoint');
-        image_stream = fs.createReadStream('./album-art/Lover.png');
-        res.writeHead(200,{'Content-Type':'image/jpeg'});
+        image_stream = fs.createReadStream('./album-art/Homicide.jpg');
+        res.writeHead(200,{"Content-Type": "text/html"});
+        
         image_stream.pipe(res);
+        res.end();
     }
     
     
@@ -135,46 +139,62 @@ const create_search_req = function(spotify_auth, res, artist){
     let search_req_url = 'https://api.spotify.com/v1/search?'+querystring.stringify(param);
     console.log(search_req_url);
     let search_req = https.request(search_req_url, function(search_res){
-        recieved_search(search_res, res);
+        let results = "";
+        search_res.on('data', function(chunk){results += chunk;});
+        search_res.on('end', function(){
+			let search_res_data = JSON.parse(results);
+			let n = 20;
+			for(let i=0; i < n; i++){
+                
+                let artist = {
+                    name: search_res_data.albums.items[i].name,
+                    image: search_res_data.albums.items[i].images[0].url
+                }
+                
+                albums.push(artist);
+                
+                download_images(albums[i], res);
+                
+			}
+		})
     });
+    console.log("Requesting Albums");
     search_req.end();
 }
-const recieved_search = function (search_res, res){
-    search_res.setEncoding('utf8');
-    let body = "";
-    search_res.on("data", data=>{body+=data});
-    search_res.on("end", ()=>{
-        let search_res_data = JSON.parse(body);
-        console.log(search_res_data);
-        let artist = {
-            name: search_res_data.albums.items[0].name,
-            genre: search_res_data.albums.items[0].genres,
-            image: search_res_data.albums.items[0].images[0].url
-        }
-        let img_path_name = img_path + artist.name+'.png';
-        console.log(img_path_name);
-
-        if(fs.existsSync(img_path_name)){
-            console.log("image already exists");
-            let webpage = `<img src="${img_path_name}" alt="image" />`;
-            res.writeHead(200, {"Content-Type": "text/html"});
-            res.end(webpage);
-        }else{
-            let image_req = https.get(artist.image, function(image_res){
-                let new_img = fs.createWriteStream(img_path_name, {'encoding': null});
-                image_res.pipe(new_img);
-                new_img.on('finish', function() {
-                    console.log("image cache");
-                    let webpage = `<img src="${img_path_name}" alt="image" />`;
-                    res.writeHead(200, {"Content-Type": "text/html"});
-                    res.end(webpage);
-                });
-                
-            });
-            
-        }
+const download_images = function (image_url, res){
+    let img_path_name = img_path + image_url.name+'.jpg';
+    let full_img_path = `<img src="${img_path_name}">`;
+    album_art.push(full_img_path);
+    
+    if( fs.existsSync(img_path_name)){
+        console.log("image already exists");
+        generate_webpage(album_art, res);
+    }
+   
+        
+	     let image_req = https.get(image_url.image, function(image_res){
+		let new_img = fs.createWriteStream(img_path_name, {'encoding':null});
+		image_res.pipe(new_img);
+		new_img.on("finish", function() {
+			downloaded_images += 1;
+			if(downloaded_images === albums.length){
+				console.log('Finished Writing Images');
+				generate_webpage(album_art, res);
+			}
+		});
     });
+    
+	image_req.on('error', function(err){console.log(err);});
+};
+
+const generate_webpage = function(album_art, res){
+	for (index = 0; index < album_art.length; index++) { 
+        res.end(album_art[index]); 
+    } 
 }
+
+
+
 const server = http.createServer(new_connection);
 server.listen(port, host);
 console.log(`Server now listening on ${host}:${port}`);
