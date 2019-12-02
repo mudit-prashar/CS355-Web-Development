@@ -23,7 +23,7 @@ const img_path = './album-art/';
 let albums = [];
 let album_art = [];
 let downloaded_images = 0;
-
+let test = [];
 const new_connection = function(req,res){
     if (req.url === "/") {
         let inputForm = fs.createReadStream('./html/search-form.html');
@@ -33,8 +33,9 @@ const new_connection = function(req,res){
         
     }
     else if(req.url.startsWith("/favicon.ico")){
-		res.writeHead(404);
-		res.end();
+		
+        res.writeHead(404);
+        res.end();
 	}    
     else if (req.url.startsWith("/search")) {
         
@@ -89,15 +90,16 @@ const new_connection = function(req,res){
 
     else  if(req.url.includes('/album-art/')){
         console.log('album-art endpoint');
-        image_stream = fs.createReadStream('./album-art/Homicide.jpg');
-        res.writeHead(200,{"Content-Type": "text/html"});
+        image_stream = fs.createReadStream(`./album-art/${test[0]}`);
+        res.writeHead(200,{"Content-Type": "image/jpeg"});
         
         image_stream.pipe(res);
-        res.end();
+        
+        
+        
+      
     }
     
-    
-
 };
 
 const received_authentication = function(authentication_res, artist, auth_sent_time, res){
@@ -134,17 +136,20 @@ const create_search_req = function(spotify_auth, res, artist){
     let param = {
         access_token : spotify_auth.access_token,
         q : artist.artist,
-        type : 'album'
+        type : 'album',
+        limit:10
     }
     let search_req_url = 'https://api.spotify.com/v1/search?'+querystring.stringify(param);
     console.log(search_req_url);
     let search_req = https.request(search_req_url, function(search_res){
         let results = "";
+        
         search_res.on('data', function(chunk){results += chunk;});
+       
         search_res.on('end', function(){
 			let search_res_data = JSON.parse(results);
-			let n = 20;
-			for(let i=0; i < n; i++){
+           
+			for(let i=0; i < param.limit; i++ ){
                 
                 let artist = {
                     name: search_res_data.albums.items[i].name,
@@ -156,23 +161,27 @@ const create_search_req = function(spotify_auth, res, artist){
                 download_images(albums[i], res);
                 
 			}
-		})
+        })
+        
     });
     console.log("Requesting Albums");
+    
     search_req.end();
 }
 const download_images = function (image_url, res){
-    let img_path_name = img_path + image_url.name+'.jpg';
+    let img_path_name = img_path + image_url.name+'.jpeg';
     let full_img_path = `<img src="${img_path_name}">`;
+    
+    test.push(image_url.name+'.jpeg')
     album_art.push(full_img_path);
     
     if( fs.existsSync(img_path_name)){
         console.log("image already exists");
         generate_webpage(album_art, res);
     }
-   
+    
         
-	     let image_req = https.get(image_url.image, function(image_res){
+	    let image_req = https.get(image_url.image, function(image_res){
 		let new_img = fs.createWriteStream(img_path_name, {'encoding':null});
 		image_res.pipe(new_img);
 		new_img.on("finish", function() {
@@ -183,24 +192,20 @@ const download_images = function (image_url, res){
 			}
 		});
     });
-    
+
 	image_req.on('error', function(err){console.log(err);});
 };
 
 const generate_webpage = function(album_art, res){
 	for (index = 0; index < album_art.length; index++) { 
-        res.end(album_art[index]); 
+      
+         res.end(album_art[index]); 
+         
+       
     } 
+    
 }
-
-
 
 const server = http.createServer(new_connection);
 server.listen(port, host);
 console.log(`Server now listening on ${host}:${port}`);
-
-
-
-
-
-
