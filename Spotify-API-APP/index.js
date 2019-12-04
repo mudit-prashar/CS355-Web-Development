@@ -90,14 +90,16 @@ const new_connection = function(req,res){
 
     else  if(req.url.includes('/album-art/')){
         console.log('album-art endpoint');
-        image_stream = fs.createReadStream(`./album-art/${test[0]}`);
+        let artist = url.parse(req.url, true);
+        let path = artist.pathname;
+        image_stream = fs.createReadStream(`.${decodeURI(path)}`);
         res.writeHead(200,{"Content-Type": "image/jpeg"});
-        
         image_stream.pipe(res);
-        
-        
-        
-      
+        image_stream.on('error', function(err){
+            console.log(err);
+            res.writeHead(404);
+            return res.end();
+        });
     }
     
 };
@@ -197,13 +199,15 @@ const download_images = function (image_url, res){
 };
 
 const generate_webpage = function(album_art, res){
+    let webpage = "";
+
 	for (index = 0; index < album_art.length; index++) { 
       
-         res.end(album_art[index]); 
-         
-       
+         webpage += album_art[index];
+         res.writeHead(200,{'Content-type': 'text/html'});
+
     } 
-    
+    res.end(webpage);
 }
 
 const server = http.createServer(new_connection);
