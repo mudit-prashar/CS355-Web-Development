@@ -35,8 +35,8 @@ const new_connection = function(req,res){
         let request_data = "";
         req.on("data", function (chunk) {request_data += chunk;});
         req.on("end", function () {
-            let user_input = querystring.parse(request_data);
-            console.log(user_input);
+            let user_input = url.parse(req.url, true).query;
+            console.log(user_input.artist);
             
             let state = crypto.randomBytes(20).toString("hex");
             state_storage.push({state, artist: user_input.artist});
@@ -167,9 +167,9 @@ const recieved_search = function (search_res, res){
         let search_res_data = JSON.parse(body);
         console.log(search_res_data);
         let artist = {
-            name: search_res_data.artists.items[0].name,
-            genre: search_res_data.artists.items[0].genres,
-            image: search_res_data.artists.items[0].images[0].url
+            name: search_res_data.albums.items[0].name,
+            genre: search_res_data.albums.items[0].genres,
+            image: search_res_data.albums.items[0].images[0].url
         }
         let img_path_name = img_path + artist.name+'.png';
         if(fs.existsSync(img_path_name)){
