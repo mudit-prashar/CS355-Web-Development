@@ -175,6 +175,8 @@ const create_search_req = function(spotify_auth, res, artist){
     }
     let search_req_url = 'https://api.spotify.com/v1/search?'+querystring.stringify(param);
     console.log(search_req_url);
+
+
     let search_req = https.request(search_req_url, function(search_res){
         let results = "";
         
@@ -196,9 +198,20 @@ const create_search_req = function(spotify_auth, res, artist){
                 
 			}
         })
+        console.log("second API Call Begins")
+        let results2 = "";
+        https.get('https://www.balldontlie.io/api/v1/players', (res) => {
+            res.on('data', (chunk) => {
+                results2 += chunk;
+                console.log(`results: ${results2}`)
+            });
+          
+          }).on('error', (e) => {
+            console.error(e);
+          });
         
     });
-    console.log("Requesting Albums");
+    
     
     search_req.end();
 }
