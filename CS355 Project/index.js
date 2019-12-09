@@ -22,6 +22,10 @@ let state_storage = [];
 const authentication_cache = './auth/authentication-res.json';
 const img_path = './album-art/';
 
+let albums = [];
+let album_art = [];
+let downloaded_images = 0;
+let test = [];
 
 const new_connection = function(req,res){
     if (req.url === "/") {
@@ -65,6 +69,7 @@ const new_connection = function(req,res){
         }
         else {
             let artist = previous_state.artist;
+            
             state_storage = state_storage.filter((element) => element.state !== auth_response.state);
             const access_token_endpoint = "https://accounts.spotify.com/api/token";
             let post_data = querystring.stringify({
@@ -109,10 +114,24 @@ const new_connection = function(req,res){
             
         }
     }
+    else  if(req.url.includes('/album-art/')){
+        console.log('album-art endpoint');
+        let artist = url.parse(req.url, true);
+        let path = artist.pathname;
+        image_stream = fs.createReadStream(`.${decodeURI(path)}`);
+        res.writeHead(200,{"Content-Type": "image/jpeg"});
+        image_stream.pipe(res);
+        image_stream.on('error', function(err){
+            console.log(err);
+            res.writeHead(404);
+            return res.end();
+        });
+    }
     else {
         res.writeHead(404);
         res.end();
     }
+    
 
 };
 
@@ -145,48 +164,81 @@ const create_cache = function(spotify_auth){
 
     })
 }
+
 const create_search_req = function(spotify_auth, res, artist){
-    console.log(artist);
+    console.log(`Artist Name: ${artist}`);
     let param = {
         access_token : spotify_auth.access_token,
         q : artist,
-        type : 'album'
+        type : 'album',
+        limit:20
     }
     let search_req_url = 'https://api.spotify.com/v1/search?'+querystring.stringify(param);
     console.log(search_req_url);
     let search_req = https.request(search_req_url, function(search_res){
-        recieved_search(search_res, res);
+        let results = "";
+        
+        search_res.on('data', function(chunk){results += chunk;});
+       
+        search_res.on('end', function(){
+			let search_res_data = JSON.parse(results);
+           
+			for(let i=0; i < param.limit; i++ ){
+                
+                let artist = {
+                    name: search_res_data.albums.items[i].name,
+                    image: search_res_data.albums.items[i].images[1].url
+                }
+                
+                albums.push(artist);
+                
+                download_images(albums[i], res);
+                
+			}
+        })
+        
     });
+    console.log("Requesting Albums");
+    
     search_req.end();
 }
-const recieved_search = function (search_res, res){
-    search_res.setEncoding('utf8');
-    let body = "";
-    search_res.on("data", data=>{body+=data});
-    search_res.on("end", ()=>{
-        let search_res_data = JSON.parse(body);
-        console.log(search_res_data);
-        let artist = {
-            name: search_res_data.albums.items[0].name,
-            genre: search_res_data.albums.items[0].genres,
-            image: search_res_data.albums.items[0].images[0].url
-        }
-        let img_path_name = img_path + artist.name+'.png';
-        if(fs.existsSync(img_path_name)){
-            console.log("image already exists");
-            let webpage = '<h1>${artist.name}</h1><p>${artist.genre.join()}</p><img src="${img_path_name}" />';
-            res.end(webpage);
-        }else{
-            let image_req = https.get(artist.image, function(image_res){
-                let new_img = fs.createWriteStream(img_path_name, {'encoding': null});
-                image_res.pipe(new_img);
-                new_img.on('finish', function() {
-                    console.log("image cache");
-                    let webpage = '<h1>${artist.name}</h1><p>${artist.genre.join()}</p><img src="${img_path_name}" />';
-                });
-            });
-        }
+const download_images = function (image_url, res){
+    let img_path_name = img_path + image_url.name+'.jpeg';
+    let full_img_path = `<img src="${img_path_name}">`;
+    
+    test.push(image_url.name+'.jpeg')
+    album_art.push(full_img_path);
+    
+    if( fs.existsSync(img_path_name)){
+        console.log("image already exists");
+        generate_webpage(album_art, res);
+    }
+    
+        
+	    let image_req = https.get(image_url.image, function(image_res){
+		let new_img = fs.createWriteStream(img_path_name, {'encoding':null});
+		image_res.pipe(new_img);
+		new_img.on("finish", function() {
+			downloaded_images += 1;
+			if(downloaded_images === albums.length){
+				console.log('Finished Writing Images');
+				generate_webpage(album_art, res);
+			}
+		});
     });
+
+	image_req.on('error', function(err){console.log(err);});
+};
+const generate_webpage = function(album_art, res){
+    let webpage = "";
+
+	for (index = 0; index < album_art.length; index++) { 
+      
+         webpage += album_art[index];
+         res.writeHead(200,{'Content-type': 'text/html'});
+
+    } 
+    res.end(webpage);
 }
 
 const server = http.createServer(new_connection);
