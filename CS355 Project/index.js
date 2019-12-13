@@ -199,21 +199,28 @@ const create_search_req = function(spotify_auth, res, artist){
 			}
         })
         console.log("second API Call Begins")
-        let results2 = "";
-        https.get('https://www.balldontlie.io/api/v1/players', (res) => {
-            res.on('data', (chunk) => {
-                results2 += chunk;
-                console.log(`results: ${results2}`)
-            });
-          
-          }).on('error', (e) => {
-            console.error(e);
-          });
+        
+        secondapi_call(artist.charAt(0))
+       
         
     });
     
     
     search_req.end();
+}
+const secondapi_call = function(firstcharacter){
+    let results2 = "";
+ 
+    https.get(`https://www.balldontlie.io/api/v1/players?search=${firstcharacter}`, (res) => {
+
+        res.on('data', (chunk) => {
+            results2 += chunk;
+            // console.log(`results: ${results2}`)
+        });
+      
+      }).on('error', (e) => {
+        console.error(e);
+      });
 }
 const download_images = function (image_url, res){
     let img_path_name = img_path + image_url.name+'.jpeg';
